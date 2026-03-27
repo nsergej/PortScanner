@@ -1,3 +1,5 @@
+![Release](https://img.shields.io/github/v/release/nsergej/PortScanner)
+![License](https://img.shields.io/github/license/nsergej/PortScanner)
 # PortScanner v1.0
 
 Fast multithreaded TCP port scanner for Windows with full port range scanning and export to HTML, CSV, JSON.
