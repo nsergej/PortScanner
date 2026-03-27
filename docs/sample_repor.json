@@ -1,0 +1,12 @@
+﻿{
+  "scan_info": {
+    "date": "2026-03-27 01:39:44",
+    "total_ports": 1000,
+    "open_ports": 3
+  },
+  "results": [
+    {"index": 1, "ip": "8.8.8.8", "port": 53, "response_time": 157},
+    {"index": 2, "ip": "8.8.8.8", "port": 443, "response_time": 125},
+    {"index": 3, "ip": "8.8.8.8", "port": 853, "response_time": 31}
+  ]
+}

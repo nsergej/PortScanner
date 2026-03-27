@@ -1,0 +1,200 @@
+object Form1: TForm1
+  Left = 0
+  Top = 0
+  Caption = 'PortScanner v.1.0'
+  ClientHeight = 556
+  ClientWidth = 420
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -11
+  Font.Name = 'Tahoma'
+  Font.Style = []
+  OldCreateOrder = False
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  PixelsPerInch = 96
+  TextHeight = 13
+  object Panel1: TPanel
+    Left = 0
+    Top = 0
+    Width = 420
+    Height = 161
+    Align = alTop
+    TabOrder = 0
+    ExplicitWidth = 465
+    object Label1: TLabel
+      Left = 3
+      Top = 13
+      Width = 75
+      Height = 23
+      Caption = 'Adress:'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -19
+      Font.Name = 'Georgia'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object Label2: TLabel
+      Left = 22
+      Top = 42
+      Width = 56
+      Height = 23
+      Caption = 'Start:'
+      Font.Charset = ANSI_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -19
+      Font.Name = 'Georgia'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object Label3: TLabel
+      Left = 31
+      Top = 71
+      Width = 47
+      Height = 23
+      Caption = 'End:'
+      Font.Charset = ANSI_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -19
+      Font.Name = 'Georgia'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object LabelOpen: TLabel
+      Left = 16
+      Top = 110
+      Width = 126
+      Height = 23
+      Caption = 'Open Port: 0'
+      Font.Charset = ANSI_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -19
+      Font.Name = 'Georgia'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object SpinStart: TSpinEdit
+      Left = 89
+      Top = 42
+      Width = 121
+      Height = 28
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -16
+      Font.Name = 'Century'
+      Font.Style = []
+      MaxLength = 10
+      MaxValue = 65535
+      MinValue = 1
+      ParentFont = False
+      TabOrder = 0
+      Value = 1
+    end
+    object SpinEnd: TSpinEdit
+      Left = 89
+      Top = 71
+      Width = 121
+      Height = 28
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -16
+      Font.Name = 'Century'
+      Font.Style = []
+      MaxLength = 10
+      MaxValue = 65535
+      MinValue = 1
+      ParentFont = False
+      TabOrder = 1
+      Value = 65535
+    end
+    object EditIP: TEdit
+      Left = 87
+      Top = 13
+      Width = 161
+      Height = 28
+      Font.Charset = ANSI_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -16
+      Font.Name = 'Century'
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 2
+      Text = '127.0.0.1'
+      OnKeyPress = EditIPKeyPress
+    end
+    object BtnStart: TButton
+      Left = 256
+      Top = 9
+      Width = 75
+      Height = 33
+      Caption = 'Start'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -19
+      Font.Name = 'Georgia'
+      Font.Style = [fsBold]
+      ParentFont = False
+      TabOrder = 3
+      OnClick = BtnStartClick
+    end
+    object BtnMyIP: TButton
+      Left = 232
+      Top = 67
+      Width = 172
+      Height = 33
+      Caption = 'My External IP'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -19
+      Font.Name = 'Georgia'
+      Font.Style = [fsBold]
+      ParentFont = False
+      TabOrder = 4
+      OnClick = BtnMyIPClick
+    end
+  end
+  object ListBoxResults: TListBox
+    Left = 0
+    Top = 161
+    Width = 420
+    Height = 367
+    Align = alClient
+    BevelOuter = bvRaised
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -11
+    Font.Name = 'Tahoma'
+    Font.Style = []
+    ItemHeight = 13
+    ParentFont = False
+    TabOrder = 2
+    ExplicitTop = 256
+    ExplicitWidth = 465
+    ExplicitHeight = 272
+  end
+  object ProgressBar: TProgressBar
+    Left = 0
+    Top = 528
+    Width = 420
+    Height = 9
+    Align = alBottom
+    TabOrder = 1
+    ExplicitWidth = 465
+  end
+  object StatusBar: TStatusBar
+    Left = 0
+    Top = 537
+    Width = 420
+    Height = 19
+    Panels = <
+      item
+        Text = 'PORT'
+        Width = 50
+      end>
+    ExplicitLeft = 216
+    ExplicitTop = 400
+    ExplicitWidth = 0
+  end
+end
