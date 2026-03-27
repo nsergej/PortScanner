@@ -19,7 +19,8 @@ Fast multithreaded TCP port scanner for Windows with full port range scanning an
 
 ## Screenshots
 
-<img width="402" height="667" alt="PortScanner" src="https://github.com/user-attachments/assets/8966bebd-2c65-44f0-a168-fcf1058d44cc" />
+<img width="436" height="591" alt="image" src="https://github.com/user-attachments/assets/201fbebb-34f3-49c2-bd53-27eae29a00a4" />
+
 
 
 ---
