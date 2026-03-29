@@ -25,68 +25,82 @@ Fast multithreaded TCP port scanner for Windows with full port range scanning an
 
 ---
 
-## Usage
+## Download
 
-1. Run PortScanner.exe
-2. Enter target IP address
-3. Set port range if needed
-4. Click Start
+Download latest version
+
+https://github.com/nsergej/PortScanner/releases
+
+No installation required just run PortScanner.exe
 
 ---
 
-## Output
+## How to use
 
-After scan completion, reports are automatically generated:
+1. Run PortScanner.exe  
+2. Enter target IP address  
+3. Set port range if needed  
+4. Click Start  
 
-* HTML report
-* CSV file
-* JSON file
+Scan progress and open ports are displayed in real time  
 
-Example:
+---
 
-```
-Port Scan Results
-Generated: 2026-03-27
+## Example Output
 
-#   IP              Port   Response Time ms
-1   8.8.8.8         53     125
-2   8.8.8.8         443    125
-3   8.8.8.8         853    62
-```
+Port Scan Results  
+Generated 2026-03-27  
+
+IP 8.8.8.8  
+Port 53 Response 125 ms  
+Port 443 Response 125 ms  
+Port 853 Response 62 ms  
+
+---
+
+## Use Cases
+
+Check open ports on servers  
+Audit local network devices  
+Detect exposed services  
+Quick diagnostics for IT support  
 
 ---
 
 ## Performance
 
-* Up to 256 concurrent workers
-* Optimized queue based processing
-* Stable under high load
-
----
-
-## Download
-
-Go to Releases and download the latest version:
-
-👉 https://github.com/nsergej/PortScanner/releases
+Up to 256 concurrent workers  
+Optimized queue based processing  
+Stable under high load  
+Efficient CPU usage  
 
 ---
 
 ## Technical Details
 
-* Language Delphi VCL
-* Networking WinSock
-* Non blocking sockets using select
-* Thread safe queue with critical sections
+Language Delphi VCL  
+Networking WinSock API  
+Non blocking sockets  
+Thread safe queue  
+Max workers 256  
+
+---
+
+## System Requirements
+
+Windows 10 or newer  
+No external dependencies  
+
+---
+
+## Security Notice
+
+Use this tool only on systems and networks you own or have permission to test  
+
+Unauthorized scanning may violate laws and network policies  
 
 ---
 
 ## License
 
 MIT License
-
----
-
-## Disclaimer
-
-Use this tool only on systems and networks you own or have permission to test.
