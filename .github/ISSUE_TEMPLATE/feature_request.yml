@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest a focused improvement for PortScanner or its documentation
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the user problem before proposing an implementation. Do not include credentials, private addresses, internal host names, or confidential data.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checks
+      options:
+        - label: I searched existing issues and pull requests for this request.
+          required: true
+        - label: I removed confidential and private network information.
+          required: true
+        - label: I agree to follow the repository Code of Conduct.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Explain the current limitation or workflow problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the requested behavior without assuming a specific implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe workarounds or other approaches you considered.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add sanitized examples or screenshots when useful.

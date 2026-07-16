@@ -1,0 +1,80 @@
+name: Bug report
+description: Report a reproducible problem in PortScanner or its documentation
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem. Remove credentials, private addresses, internal host names, and other confidential data. Report potential vulnerabilities privately through SECURITY.md.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checks
+      options:
+        - label: I searched existing issues and pull requests for this problem.
+          required: true
+        - label: I removed credentials, private network details, and confidential data.
+          required: true
+        - label: This report does not contain a potential security vulnerability.
+          required: true
+        - label: I agree to follow the repository Code of Conduct.
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: PortScanner version
+      description: Enter a release tag or commit identifier.
+      placeholder: "1.0.0 or commit SHA"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the Windows version and, for build problems, the Delphi version and target configuration.
+      placeholder: "Windows 11; Delphi 10.4 Sydney; Win32 Release"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem description
+      description: Explain what went wrong and when it occurs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest authorized sequence that reproduces the problem.
+      placeholder: |
+        1. Start ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add sanitized logs or screenshots when they help explain the problem.
