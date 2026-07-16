@@ -24,6 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   executable directories.
 - Added CSV escaping and JSON serialization through Delphi JSON classes.
 - Fixed UI text: `Address` and `Open Ports`.
+- Removed the hard-coded unavailable `Auric` VCL style so the application starts
+  without a missing-style dialog.
 - Fixed command-line builds by adding `src/PortScanner.rc` and using a resource
   directive that can generate `PortScanner.res` from source.
 
