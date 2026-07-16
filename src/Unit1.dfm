@@ -28,7 +28,7 @@ object Form1: TForm1
       Top = 13
       Width = 75
       Height = 23
-      Caption = 'Adress:'
+      Caption = 'Address:'
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clWindowText
       Font.Height = -19
@@ -67,7 +67,7 @@ object Form1: TForm1
       Top = 110
       Width = 126
       Height = 23
-      Caption = 'Open Port: 0'
+      Caption = 'Open Ports: 0'
       Font.Charset = ANSI_CHARSET
       Font.Color = clWindowText
       Font.Height = -19

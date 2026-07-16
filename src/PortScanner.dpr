@@ -6,7 +6,7 @@ uses
   Vcl.Themes,
   Vcl.Styles;
 
-{$R *.res}
+{$R PortScanner.res PortScanner.rc}
 
 begin
   Application.Initialize;
