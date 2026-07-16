@@ -22,11 +22,10 @@ object Form1: TForm1
     Height = 161
     Align = alTop
     TabOrder = 0
-    ExplicitWidth = 465
     object Label1: TLabel
       Left = 3
       Top = 13
-      Width = 75
+      Width = 88
       Height = 23
       Caption = 'Address:'
       Font.Charset = DEFAULT_CHARSET
@@ -65,7 +64,7 @@ object Form1: TForm1
     object LabelOpen: TLabel
       Left = 16
       Top = 110
-      Width = 126
+      Width = 136
       Height = 23
       Caption = 'Open Ports: 0'
       Font.Charset = ANSI_CHARSET
@@ -76,10 +75,10 @@ object Form1: TForm1
       ParentFont = False
     end
     object SpinStart: TSpinEdit
-      Left = 89
+      Left = 95
       Top = 42
       Width = 121
-      Height = 28
+      Height = 30
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clWindowText
       Font.Height = -16
@@ -93,10 +92,10 @@ object Form1: TForm1
       Value = 1
     end
     object SpinEnd: TSpinEdit
-      Left = 89
+      Left = 95
       Top = 71
       Width = 121
-      Height = 28
+      Height = 30
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clWindowText
       Font.Height = -16
@@ -110,7 +109,7 @@ object Form1: TForm1
       Value = 65535
     end
     object EditIP: TEdit
-      Left = 87
+      Left = 95
       Top = 13
       Width = 161
       Height = 28
@@ -125,7 +124,7 @@ object Form1: TForm1
       OnKeyPress = EditIPKeyPress
     end
     object BtnStart: TButton
-      Left = 256
+      Left = 265
       Top = 9
       Width = 75
       Height = 33
@@ -170,9 +169,6 @@ object Form1: TForm1
     ItemHeight = 13
     ParentFont = False
     TabOrder = 2
-    ExplicitTop = 256
-    ExplicitWidth = 465
-    ExplicitHeight = 272
   end
   object ProgressBar: TProgressBar
     Left = 0
@@ -181,7 +177,6 @@ object Form1: TForm1
     Height = 9
     Align = alBottom
     TabOrder = 1
-    ExplicitWidth = 465
   end
   object StatusBar: TStatusBar
     Left = 0
@@ -193,8 +188,5 @@ object Form1: TForm1
         Text = 'PORT'
         Width = 50
       end>
-    ExplicitLeft = 216
-    ExplicitTop = 400
-    ExplicitWidth = 0
   end
 end
