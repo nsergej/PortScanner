@@ -1,2 +1,7 @@
-# Auto detect text files and perform LF normalization
+# Auto detect text files and perform line-ending normalization without forcing
+# a repository-wide rewrite of existing Delphi CRLF files.
 * text=auto
+
+# Binary assets.
+*.ico binary
+*.png binary
