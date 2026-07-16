@@ -95,6 +95,7 @@ const
   MAX_WORKERS = 256;
   CONNECT_TIMEOUT_MS = 1500;
   PROGRESS_UPDATE_BATCH = 32;
+  PROGRESS_UPDATE_INTERVAL_MS = 250;
   MIN_PORT_NUMBER = 1;
   MAX_PORT_NUMBER = 65535;
   RESULT_HEADER_LINES = 2;
@@ -323,9 +324,11 @@ var
   Success: Boolean;
   RT: Integer;
   PendingDone: Integer;
+  LastProgressTick: UInt64;
   ResultInfo: TScanResult;
 begin
   PendingDone := 0;
+  LastProgressTick := GetTickCount64;
   FillChar(ResultInfo, SizeOf(ResultInfo), 0);
 
   while not Terminated do
@@ -346,9 +349,16 @@ begin
     Inc(PendingDone);
 
     if Success then
-      FlushProgress(PendingDone, ResultInfo, True)
-    else if PendingDone >= PROGRESS_UPDATE_BATCH then
+    begin
+      FlushProgress(PendingDone, ResultInfo, True);
+      LastProgressTick := GetTickCount64;
+    end
+    else if (PendingDone >= PROGRESS_UPDATE_BATCH) or
+      (GetTickCount64 - LastProgressTick >= PROGRESS_UPDATE_INTERVAL_MS) then
+    begin
       FlushProgress(PendingDone, ResultInfo, False);
+      LastProgressTick := GetTickCount64;
+    end;
 
     if IsCancellationRequested then
       Break;
