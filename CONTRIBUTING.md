@@ -1,58 +1,116 @@
 # Contributing to PortScanner
 
-Thank you for contributing to PortScanner. Contributions should be focused, documented, and easy to review.
+Thank you for contributing to PortScanner. Keep changes focused, factual, compatible with the existing project, and easy to review.
 
-## Before You Start
+By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-- Search existing issues and pull requests before opening a new one.
-- Use PortScanner only on systems and networks that you own or are authorized to test.
-- Report security-sensitive problems privately by following [SECURITY.md](SECURITY.md).
+## Before Opening an Issue
 
-## Development Setup
+1. Search existing issues and pull requests for the same topic.
+2. Confirm that the issue applies to the current source or documented release.
+3. Remove credentials, tokens, private IPv4 addresses, internal host names, and other confidential data.
+4. Use the appropriate bug-report or feature-request template.
 
-Code changes require Embarcadero Delphi 10.4 Sydney with the Windows VCL components installed. Follow the build procedure in [README.md](README.md#build-instructions-for-delphi).
+For a bug report, include:
 
-Documentation-only changes do not require compiling or running the application.
+- PortScanner version or commit
+- Windows version
+- Delphi version for build problems
+- A concise problem description
+- Minimal reproduction steps
+- Expected and actual behavior
+- Relevant error text with sensitive data removed
 
-## Contribution Workflow
+Do not use public issues for potential security vulnerabilities. Follow [SECURITY.md](SECURITY.md) instead.
 
-1. Create a branch from `main` with a descriptive name.
-2. Keep each contribution limited to one logical change.
-3. Preserve the existing Delphi 10.4 and VCL compatibility requirements.
-4. Do not commit generated executables, compiler output, or local IDE files unless the repository explicitly tracks them.
-5. Update the documentation and `CHANGELOG.md` when behavior, requirements, or user-facing output changes.
-6. Commit with a concise message that explains the purpose of the change.
-7. Open a pull request against `main` and describe the change and its verification.
+## Responsible Testing
 
-## Documentation Guidelines
+Test network-related changes only on systems and networks that you own or are explicitly authorized to use. A contribution must not contain scan results or target details from an unauthorized system.
 
-- Write documentation in clear English.
-- Use descriptive Markdown headings and meaningful link text.
-- Keep line endings and file naming consistent with the repository.
-- Use relative links for files stored in the repository.
-- Keep README report examples synchronized with the files in `docs`.
-- State explicitly when a feature or protocol is not supported. PortScanner supports IPv4 only.
+## Development Environment
+
+Source changes must remain compatible with Embarcadero Delphi 10.4 Sydney and the Windows VCL framework. Follow [BUILDING.md](BUILDING.md) for the current Win32 project setup.
+
+Documentation-only changes do not require compiling or running the application, but they must accurately describe behavior present in the source.
+
+## Create a Branch
+
+Create a separate branch from an up-to-date `main` branch. Use a short descriptive name, for example:
+
+```text
+fix/progress-counter
+docs/export-format-description
+feature/configurable-timeout
+```
+
+Keep unrelated code, formatting, generated files, and documentation changes out of the branch.
+
+## Commit Messages
+
+Write concise imperative messages that identify the change. A conventional prefix is encouraged:
+
+```text
+fix: correct scan progress counter
+docs: clarify automatic report export
+refactor: simplify result formatting
+```
+
+Each commit should represent one logical change. Do not commit executables, DCUs, IDE caches, local project settings, or other generated output unless maintainers explicitly request them.
+
+## Pull Request Requirements
+
+Open pull requests against `main`. The description should include:
+
+- What changed and why
+- User-visible behavior affected by the change
+- Files or components involved
+- Build configuration used, when applicable
+- Tests or manual checks actually performed
+- Known limitations or follow-up work
+
+Do not state that a build or test passed unless it was actually run. Keep the pull request small enough to review and do not combine unrelated fixes.
+
+## Source-Code Requirements
+
+- Preserve Delphi 10.4 Sydney compatibility.
+- Preserve the VCL desktop application model.
+- Keep UI updates synchronized with the main thread.
+- Keep shared worker data correctly synchronized.
+- Handle Windows and WinSock errors without exposing sensitive information.
+- Avoid new dependencies unless their need and licensing are clearly justified.
+- Update documentation when behavior, requirements, report fields, or user-visible text changes.
+
+## Documentation Requirements
+
+- Write clear professional English.
+- Use `PortScanner`, `TCP port scanner`, `IPv4 address`, `open ports`, and `response time` consistently.
+- Use relative links for repository files.
+- Keep README examples synchronized with `docs/sample_report.csv`, `docs/sample_report.html`, and `docs/sample_report.json`.
+- Do not document IPv6, DNS host-name scanning, manual export, configurable workers, or other features absent from the current source.
+- Update [CHANGELOG.md](CHANGELOG.md) for notable user-facing changes.
 
 ## Validation
 
-Before submitting a code change:
+For source changes:
 
-1. Build the affected target in Delphi 10.4.
-2. Confirm that the compiler reports no errors.
-3. Test the changed behavior on a system you are authorized to use.
-4. Record the build configuration and manual checks in the pull request.
+1. Build the affected Win32 Debug or Release target with Delphi 10.4.
+2. Review all compiler errors and warnings.
+3. Run only the minimum authorized manual scenario needed to verify the change.
+4. Record the exact checks in the pull request.
 
-Before submitting a documentation-only change:
+For documentation changes:
 
-1. Review the rendered Markdown structure.
-2. Check all relative links and file names.
-3. Validate JSON, CSV, and HTML examples when they are changed.
-4. Confirm that no generated or source-code files were modified unintentionally.
+1. Review the rendered GitHub Markdown structure.
+2. Check relative links and file names.
+3. Validate YAML issue forms when changed.
+4. Parse JSON and review CSV and HTML samples when changed.
+5. Confirm through `git diff` that no Delphi source or generated files were modified unintentionally.
 
-## Pull Request Checklist
+## Review Checklist
 
-- The change has a clear purpose and limited scope.
-- Documentation matches the implemented behavior.
-- Relevant validation has been completed and described.
-- No sensitive information, credentials, or private network data is included.
-- Security-sensitive details are not disclosed publicly.
+- The contribution has one clear purpose.
+- Claims match the current implementation.
+- Delphi 10.4 compatibility is preserved for source changes.
+- Relevant validation is documented honestly.
+- No credentials, private network details, or confidential data are included.
+- Security-sensitive information is reported privately.
