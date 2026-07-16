@@ -4,7 +4,7 @@ uses
   Vcl.Forms,
   Unit1 in 'Unit1.pas' {Form1};
 
-{$R PortScanner.res PortScanner.rc}
+{$R PortScanner.res}
 
 begin
   Application.Initialize;

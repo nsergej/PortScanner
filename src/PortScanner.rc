@@ -1,1 +1,31 @@
 MAINICON ICON "forbidden.ico"
+
+1 VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x00040004L
+ FILETYPE 0x00000001L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName", "Sergej Nekraschewitsch\0"
+            VALUE "FileDescription", "Fast multithreaded TCP port scanner for Windows\0"
+            VALUE "FileVersion", "1.0.0.0\0"
+            VALUE "InternalName", "PortScanner\0"
+            VALUE "LegalCopyright", "Copyright (c) 2026 Sergej Nekraschewitsch\0"
+            VALUE "OriginalFilename", "PortScanner.exe\0"
+            VALUE "ProductName", "PortScanner\0"
+            VALUE "ProductVersion", "1.0.0.0\0"
+            VALUE "Comments", "IPv4 TCP port scanner with HTML, CSV and JSON export\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1252
+    END
+END

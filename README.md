@@ -153,12 +153,15 @@ $out = Join-Path (Get-Location) "build\Win32"
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
 Push-Location .\src
+cgrc .\PortScanner.rc
 dcc32 -B -E"$out" -N0"$out" -NH"$out" -NO"$out" -NB"$out" .\PortScanner.dpr
 Pop-Location
 ```
 
-The project is opened from [`src/PortScanner.dpr`](src/PortScanner.dpr). A
-`.dproj` file is not currently tracked.
+The Delphi IDE project file is [`src/PortScanner.dproj`](src/PortScanner.dproj).
+The command-line build runs `cgrc` first so the generated executable includes
+the application icon and Windows version information from
+[`src/PortScanner.rc`](src/PortScanner.rc).
 
 ## Repository Layout
 
@@ -177,6 +180,7 @@ The project is opened from [`src/PortScanner.dpr`](src/PortScanner.dpr). A
 |   `-- sample_report.json
 |-- src/
 |   |-- PortScanner.dpr
+|   |-- PortScanner.dproj
 |   |-- PortScanner.rc
 |   |-- Unit1.dfm
 |   |-- Unit1.pas

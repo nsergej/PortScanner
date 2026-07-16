@@ -30,6 +30,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   instead of appearing to jump only when an open port is found.
 - Fixed command-line builds by adding `src/PortScanner.rc` and using a resource
   directive that can generate `PortScanner.res` from source.
+- Fixed executable metadata generation by adding `MAINICON` and numeric
+  `VERSIONINFO` to the tracked resource script and documenting `cgrc` before
+  Delphi compilation.
 
 ### Documentation
 

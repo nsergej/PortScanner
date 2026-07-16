@@ -4,7 +4,7 @@
         <MainSource>PortScanner.dpr</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Debug</Config>
-        <TargetedPlatforms>1</TargetedPlatforms>
+        <TargetedPlatforms>3</TargetedPlatforms>
         <AppType>Application</AppType>
         <FrameworkType>VCL</FrameworkType>
         <ProjectVersion>19.2</ProjectVersion>
@@ -54,23 +54,32 @@
         <DCC_ImageBase>00400000</DCC_ImageBase>
         <SanitizedProjectName>PortScanner</SanitizedProjectName>
         <DCC_Namespace>Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;System;Xml;Data;Datasnap;Web;Soap;$(DCC_Namespace)</DCC_Namespace>
-        <VerInfo_Locale>1031</VerInfo_Locale>
-        <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=;CFBundleName=</VerInfo_Keys>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <VerInfo_Locale>1033</VerInfo_Locale>
+        <VerInfo_Keys>CompanyName=Sergej Nekraschewitsch;FileDescription=Fast multithreaded TCP port scanner for Windows;FileVersion=1.0.0.0;InternalName=PortScanner;LegalCopyright=Copyright (c) 2026 Sergej Nekraschewitsch;LegalTrademarks=;OriginalFilename=PortScanner.exe;ProductName=PortScanner;ProductVersion=1.0.0.0;Comments=IPv4 TCP port scanner with HTML, CSV and JSON export;ProgramID=com.github.nsergej.PortScanner</VerInfo_Keys>
+        <Icon_MainIcon>forbidden.ico</Icon_MainIcon>
+        <UWP_DelphiLogo44>forbidden.png</UWP_DelphiLogo44>
+        <UWP_DelphiLogo150>forbidden.png</UWP_DelphiLogo150>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
         <BT_BuildType>Debug</BT_BuildType>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=;ProgramID=com.embarcadero.$(MSBuildProjectName)</VerInfo_Keys>
+        <VerInfo_Keys>CompanyName=Sergej Nekraschewitsch;FileDescription=Fast multithreaded TCP port scanner for Windows;FileVersion=1.0.0.0;InternalName=PortScanner;LegalCopyright=Copyright (c) 2026 Sergej Nekraschewitsch;LegalTrademarks=;OriginalFilename=PortScanner.exe;ProductName=PortScanner;ProductVersion=1.0.0.0;Comments=IPv4 TCP port scanner with HTML, CSV and JSON export;ProgramID=com.github.nsergej.PortScanner</VerInfo_Keys>
         <VerInfo_Locale>1033</VerInfo_Locale>
+        <Icon_MainIcon>forbidden.ico</Icon_MainIcon>
         <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
-        <UWP_DelphiLogo44>$(BDS)\bin\Artwork\Windows\UWP\delphi_UwpDefault_44.png</UWP_DelphiLogo44>
-        <UWP_DelphiLogo150>$(BDS)\bin\Artwork\Windows\UWP\delphi_UwpDefault_150.png</UWP_DelphiLogo150>
+        <UWP_DelphiLogo44>forbidden.png</UWP_DelphiLogo44>
+        <UWP_DelphiLogo150>forbidden.png</UWP_DelphiLogo150>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win64)'!=''">
-        <UWP_DelphiLogo44>$(BDS)\bin\Artwork\Windows\UWP\delphi_UwpDefault_44.png</UWP_DelphiLogo44>
-        <UWP_DelphiLogo150>$(BDS)\bin\Artwork\Windows\UWP\delphi_UwpDefault_150.png</UWP_DelphiLogo150>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <VerInfo_Keys>CompanyName=Sergej Nekraschewitsch;FileDescription=Fast multithreaded TCP port scanner for Windows;FileVersion=1.0.0.0;InternalName=PortScanner;LegalCopyright=Copyright (c) 2026 Sergej Nekraschewitsch;LegalTrademarks=;OriginalFilename=PortScanner.exe;ProductName=PortScanner;ProductVersion=1.0.0.0;Comments=IPv4 TCP port scanner with HTML, CSV and JSON export;ProgramID=com.github.nsergej.PortScanner</VerInfo_Keys>
+        <VerInfo_Locale>1033</VerInfo_Locale>
+        <Icon_MainIcon>forbidden.ico</Icon_MainIcon>
+        <UWP_DelphiLogo44>forbidden.png</UWP_DelphiLogo44>
+        <UWP_DelphiLogo150>forbidden.png</UWP_DelphiLogo150>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1)'!=''">
         <DCC_Define>RELEASE;$(DCC_Define)</DCC_Define>
@@ -90,6 +99,12 @@
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <AppDPIAwarenessMode>PerMonitorV2</AppDPIAwarenessMode>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <VerInfo_Locale>1033</VerInfo_Locale>
+        <VerInfo_Keys>CompanyName=Sergej Nekraschewitsch;FileDescription=Fast multithreaded TCP port scanner for Windows;FileVersion=1.0.0.0;InternalName=PortScanner;LegalCopyright=Copyright (c) 2026 Sergej Nekraschewitsch;LegalTrademarks=;OriginalFilename=PortScanner.exe;ProductName=PortScanner;ProductVersion=1.0.0.0;Comments=IPv4 TCP port scanner with HTML, CSV and JSON export;ProgramID=com.github.nsergej.PortScanner</VerInfo_Keys>
+        <Icon_MainIcon>forbidden.ico</Icon_MainIcon>
+        <UWP_DelphiLogo44>forbidden.png</UWP_DelphiLogo44>
+        <UWP_DelphiLogo150>forbidden.png</UWP_DelphiLogo150>
     </PropertyGroup>
     <ItemGroup>
         <DelphiCompile Include="$(MainSource)">
@@ -121,7 +136,7 @@
             </Delphi.Personality>
             <Platforms>
                 <Platform value="Win32">True</Platform>
-                <Platform value="Win64">False</Platform>
+                <Platform value="Win64">True</Platform>
             </Platforms>
         </BorlandProject>
         <ProjectFileVersion>12</ProjectFileVersion>
