@@ -1,4 +1,4 @@
-﻿unit Unit1;
+unit Unit1;
 
 {
   PortScanner v1.0
@@ -13,10 +13,9 @@
 interface
 
 uses
-  Winapi.Windows, Winapi.Messages, Winapi.WinSock, Winapi.WinInet,
-  System.Variants,
+  Winapi.Windows, Winapi.WinSock, Winapi.WinInet,
   System.SysUtils, System.Classes, System.Generics.Collections, System.Math,
-  System.SyncObjs, System.DateUtils, System.StrUtils, Vcl.Dialogs,
+  System.SyncObjs, System.StrUtils, System.IOUtils, System.JSON, Vcl.Dialogs,
   Vcl.Forms, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls, Vcl.Controls,
   Vcl.Samples.Spin;
 
@@ -49,12 +48,24 @@ type
   private
     FStartTime: TDateTime;
     FIsScanning: Boolean;
-    procedure ApplicationEvents1Message(var Msg: tagMSG; var Handled: Boolean);
+    FWinSockStarted: Boolean;
+    FActualWorkerCount: Integer;
     procedure UpdateStatusText(const Text: string);
-    procedure AddScanResult(const Result: TScanResult);
+    procedure AddScanProgress(ADoneCount: Integer; const AResult: TScanResult;
+      AHasOpenResult: Boolean);
     procedure WorkerFinished(AThread: TObject);
     procedure ScanFinished;
     procedure ScanStopped;
+    procedure RequestScanCancel(AClearQueue: Boolean);
+    function IsScanCancelled: Boolean;
+    procedure StopWorkersAndWait;
+    procedure CleanupFinishedWorkers(AExceptThread: TThread);
+    procedure SetScanControls(AScanning: Boolean; AStopping: Boolean);
+    procedure AddOpenResultToView(const AResult: TScanResult);
+    function FormatResultLine(AIndex: Integer; const AResult: TScanResult)
+      : string;
+    function TryReadTarget(out AHost: u_long): Boolean;
+    function GetReportsDirectory: string;
   public
     procedure ExportResultsToHTML(const FileName: string);
     procedure ExportResultsToCSV(const FileName: string);
@@ -66,10 +77,14 @@ type
   private
     FIP: string;
     FHost: u_long;
-    FResult: TScanResult;
+    FReportDoneCount: Integer;
+    FReportHasOpenResult: Boolean;
+    FReportResult: TScanResult;
     procedure DoReport;
     procedure DoNotifyFinished;
     function ScanPort(Port: Integer; out ResponseTime: Integer): Boolean;
+    procedure FlushProgress(var APendingDone: Integer;
+      const AResult: TScanResult; AHasOpenResult: Boolean);
   protected
     procedure Execute; override;
   public
@@ -79,6 +94,14 @@ type
 const
   MAX_WORKERS = 256;
   CONNECT_TIMEOUT_MS = 1500;
+  PROGRESS_UPDATE_BATCH = 32;
+  PROGRESS_UPDATE_INTERVAL_MS = 250;
+  MIN_PORT_NUMBER = 1;
+  MAX_PORT_NUMBER = 65535;
+  RESULT_HEADER_LINES = 2;
+  EXTERNAL_IP_TIMEOUT_MS = 5000;
+  MAX_EXTERNAL_IP_RESPONSE_BYTES = 128;
+  REPORT_FOLDER_NAME = 'PortScanner Reports';
 
 var
   Form1: TForm1;
@@ -87,7 +110,7 @@ var
   PortQueue: TQueue<Integer>;
   QueueCS: TCriticalSection;
 
-  ScanResults: TList<TScanResult>; // только открытые порты
+  ScanResults: TList<TScanResult>;
   TotalPorts: Integer;
   DonePorts: Integer;
   OpenPorts: Integer;
@@ -107,24 +130,124 @@ begin
   Result := StringReplace(Result, '''', '&#39;', [rfReplaceAll]);
 end;
 
+function CsvEncode(const Text: string): string;
+begin
+  Result := StringReplace(Text, '"', '""', [rfReplaceAll]);
+  if (Pos(',', Result) > 0) or (Pos('"', Text) > 0) or
+    (Pos(#10, Result) > 0) or (Pos(#13, Result) > 0) then
+    Result := '"' + Result + '"';
+end;
+
+function IsDigitsOnly(const Text: string): Boolean;
+var
+  Ch: Char;
+begin
+  Result := Text <> '';
+  if not Result then
+    Exit;
+
+  for Ch in Text do
+  begin
+    if not ((Ch >= '0') and (Ch <= '9')) then
+      Exit(False);
+  end;
+end;
+
+function TryParseIPv4Address(const Text: string; out Host: u_long): Boolean;
+var
+  Parts: TArray<string>;
+  I: Integer;
+  Value: Integer;
+  Normalized: string;
+begin
+  Result := False;
+  Host := 0;
+  Normalized := Trim(Text);
+  Parts := SplitString(Normalized, '.');
+
+  if Length(Parts) <> 4 then
+    Exit;
+
+  for I := 0 to High(Parts) do
+  begin
+    if (Parts[I] = '') or (Length(Parts[I]) > 3) or
+      not IsDigitsOnly(Parts[I]) or not TryStrToInt(Parts[I], Value) or
+      (Value < 0) or (Value > 255) then
+      Exit;
+  end;
+
+  Host := inet_addr(PAnsiChar(AnsiString(Normalized)));
+  Result := (Host <> u_long(INADDR_NONE)) and (Normalized <> '0.0.0.0');
+end;
+
+function TryDequeuePort(out Port: Integer): Boolean;
+begin
+  Result := False;
+  Port := -1;
+
+  if QueueCS = nil then
+    Exit;
+
+  QueueCS.Enter;
+  try
+    if CancelScan or (PortQueue = nil) or (PortQueue.Count = 0) then
+      Exit;
+
+    Port := PortQueue.Dequeue;
+    Result := True;
+  finally
+    QueueCS.Leave;
+  end;
+end;
+
+function IsCancellationRequested: Boolean;
+begin
+  Result := True;
+  if QueueCS = nil then
+    Exit;
+
+  QueueCS.Enter;
+  try
+    Result := CancelScan;
+  finally
+    QueueCS.Leave;
+  end;
+end;
+
 { TPortWorker }
 
 constructor TPortWorker.Create(const AIP: string; AHost: u_long);
 begin
-  inherited Create(False);
-  FreeOnTerminate := True;
+  inherited Create(True);
+  FreeOnTerminate := False;
   FIP := AIP;
   FHost := AHost;
 end;
 
 procedure TPortWorker.DoReport;
 begin
-  Form1.AddScanResult(FResult);
+  if Assigned(Form1) then
+    Form1.AddScanProgress(FReportDoneCount, FReportResult,
+      FReportHasOpenResult);
 end;
 
 procedure TPortWorker.DoNotifyFinished;
 begin
-  Form1.WorkerFinished(Self);
+  if Assigned(Form1) then
+    Form1.WorkerFinished(Self);
+end;
+
+procedure TPortWorker.FlushProgress(var APendingDone: Integer;
+  const AResult: TScanResult; AHasOpenResult: Boolean);
+begin
+  if APendingDone <= 0 then
+    Exit;
+
+  FReportDoneCount := APendingDone;
+  FReportResult := AResult;
+  FReportHasOpenResult := AHasOpenResult;
+  APendingDone := 0;
+  Synchronize(DoReport);
 end;
 
 function TPortWorker.ScanPort(Port: Integer; out ResponseTime: Integer)
@@ -132,13 +255,13 @@ function TPortWorker.ScanPort(Port: Integer; out ResponseTime: Integer)
 var
   Sock: TSocket;
   Addr: TSockAddrIn;
-  Nb: u_long;
+  NonBlocking: u_long;
   WriteSet, ErrSet: TFDSet;
-  Tv: TTimeVal;
-  SelRes: Integer;
-  Err: Integer;
-  ErrLen: Integer;
-  StartTick: Cardinal;
+  Timeout: TTimeVal;
+  SelectResult: Integer;
+  SocketError: Integer;
+  ErrorLength: Integer;
+  StartTick: UInt64;
 begin
   Result := False;
   ResponseTime := -1;
@@ -148,8 +271,8 @@ begin
     Exit;
 
   try
-    Nb := 1;
-    if ioctlsocket(Sock, FIONBIO, Nb) <> 0 then
+    NonBlocking := 1;
+    if ioctlsocket(Sock, FIONBIO, NonBlocking) <> 0 then
       Exit;
 
     FillChar(Addr, SizeOf(Addr), 0);
@@ -157,12 +280,12 @@ begin
     Addr.sin_port := htons(Port);
     Addr.sin_addr.S_addr := FHost;
 
-    StartTick := GetTickCount;
+    StartTick := GetTickCount64;
 
     if connect(Sock, Addr, SizeOf(Addr)) = SOCKET_ERROR then
     begin
-      Err := WSAGetLastError;
-      if Err <> WSAEWOULDBLOCK then
+      SocketError := WSAGetLastError;
+      if SocketError <> WSAEWOULDBLOCK then
         Exit;
     end;
 
@@ -171,25 +294,25 @@ begin
     FD_SET(Sock, WriteSet);
     FD_SET(Sock, ErrSet);
 
-    Tv.tv_sec := CONNECT_TIMEOUT_MS div 1000;
-    Tv.tv_usec := (CONNECT_TIMEOUT_MS mod 1000) * 1000;
+    Timeout.tv_sec := CONNECT_TIMEOUT_MS div 1000;
+    Timeout.tv_usec := (CONNECT_TIMEOUT_MS mod 1000) * 1000;
 
-    SelRes := select(0, nil, @WriteSet, @ErrSet, @Tv);
+    SelectResult := select(0, nil, @WriteSet, @ErrSet, @Timeout);
+    if SelectResult <= 0 then
+      Exit;
 
-    if SelRes > 0 then
+    ErrorLength := SizeOf(SocketError);
+    SocketError := 0;
+    if getsockopt(Sock, SOL_SOCKET, SO_ERROR, PAnsiChar(@SocketError),
+      ErrorLength) <> 0 then
+      Exit;
+
+    if (SocketError = 0) and FD_ISSET(Sock, WriteSet) and
+      not FD_ISSET(Sock, ErrSet) then
     begin
-      ErrLen := SizeOf(Err);
-      Err := 0;
-      getsockopt(Sock, SOL_SOCKET, SO_ERROR, PAnsiChar(@Err), ErrLen);
-
-      if (Err = 0) and FD_ISSET(Sock, WriteSet) and not FD_ISSET(Sock, ErrSet)
-      then
-      begin
-        Result := True;
-        ResponseTime := GetTickCount - StartTick;
-      end;
+      Result := True;
+      ResponseTime := Integer(GetTickCount64 - StartTick);
     end;
-
   finally
     closesocket(Sock);
   end;
@@ -200,44 +323,48 @@ var
   Port: Integer;
   Success: Boolean;
   RT: Integer;
+  PendingDone: Integer;
+  LastProgressTick: UInt64;
+  ResultInfo: TScanResult;
 begin
+  PendingDone := 0;
+  LastProgressTick := GetTickCount64;
+  FillChar(ResultInfo, SizeOf(ResultInfo), 0);
+
   while not Terminated do
   begin
-    if CancelScan then
-      Break;
-
-    // Берём следующий порт из очереди
-    QueueCS.Enter;
-    try
-      if CancelScan then
-        Port := -1
-      else if PortQueue.Count > 0 then
-        Port := PortQueue.Dequeue
-      else
-        Port := -1;
-    finally
-      QueueCS.Leave;
-    end;
-
-    if Port = -1 then
+    if not TryDequeuePort(Port) then
       Break;
 
     Success := ScanPort(Port, RT);
 
-    FResult.IP := FIP;
-    FResult.Port := Port;
-    FResult.IsOpen := Success;
+    ResultInfo.IP := FIP;
+    ResultInfo.Port := Port;
+    ResultInfo.IsOpen := Success;
     if Success then
-      FResult.ResponseTime := RT
+      ResultInfo.ResponseTime := RT
     else
-      FResult.ResponseTime := 0;
+      ResultInfo.ResponseTime := 0;
 
-    Synchronize(DoReport);
+    Inc(PendingDone);
 
-    if Terminated or CancelScan then
+    if Success then
+    begin
+      FlushProgress(PendingDone, ResultInfo, True);
+      LastProgressTick := GetTickCount64;
+    end
+    else if (PendingDone >= PROGRESS_UPDATE_BATCH) or
+      (GetTickCount64 - LastProgressTick >= PROGRESS_UPDATE_INTERVAL_MS) then
+    begin
+      FlushProgress(PendingDone, ResultInfo, False);
+      LastProgressTick := GetTickCount64;
+    end;
+
+    if IsCancellationRequested then
       Break;
   end;
 
+  FlushProgress(PendingDone, ResultInfo, False);
   Synchronize(DoNotifyFinished);
 end;
 
@@ -271,37 +398,128 @@ begin
   ListBoxResults.Font.Size := 10;
 
   WSAResult := WSAStartup(MAKEWORD(2, 2), FWSAData);
-  if WSAResult <> 0 then
+  FWinSockStarted := WSAResult = 0;
+  if not FWinSockStarted then
   begin
-    ShowMessage('Winsock initialization failed. Error: ' + IntToStr(WSAResult));
-    Halt;
+    ShowMessage('WinSock initialization failed. Error: ' + IntToStr(WSAResult));
+    BtnStart.Enabled := False;
+    BtnMyIP.Enabled := False;
+    Application.Terminate;
+    Exit;
   end;
 
-  SpinStart.Value := 1;
-  SpinEnd.Value := 65535;
+  SpinStart.Value := MIN_PORT_NUMBER;
+  SpinEnd.Value := MAX_PORT_NUMBER;
   EditIP.Text := GetLocalIPAddress;
 
   FIsScanning := False;
+  FActualWorkerCount := 0;
   CancelScan := False;
   ActiveWorkers := 0;
+  DonePorts := 0;
+  OpenPorts := 0;
+  TotalPorts := 0;
 
-  Application.OnMessage := ApplicationEvents1Message;
+  ListBoxResults.Items.Add('ID  IP              PORT   STATE   RESPONSE');
+  ListBoxResults.Items.Add('--------------------------------------------');
+  SetScanControls(False, False);
   UpdateStatusText('Ready to scan');
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
-  CancelScan := True;
-  WSACleanup;
-  PortQueue.Free;
-  QueueCS.Free;
-  ScanResults.Free;
+  StopWorkersAndWait;
+
+  if FWinSockStarted then
+    WSACleanup;
+
+  FreeAndNil(PortQueue);
+  FreeAndNil(QueueCS);
+  FreeAndNil(ScanResults);
 end;
 
-procedure TForm1.ApplicationEvents1Message(var Msg: tagMSG;
-  var Handled: Boolean);
+procedure TForm1.RequestScanCancel(AClearQueue: Boolean);
 begin
-  Handled := False;
+  if QueueCS = nil then
+    Exit;
+
+  QueueCS.Enter;
+  try
+    CancelScan := True;
+    if AClearQueue and Assigned(PortQueue) then
+      PortQueue.Clear;
+  finally
+    QueueCS.Leave;
+  end;
+end;
+
+function TForm1.IsScanCancelled: Boolean;
+begin
+  Result := IsCancellationRequested;
+end;
+
+procedure TForm1.StopWorkersAndWait;
+var
+  HasRunningWorkers: Boolean;
+  I: Integer;
+begin
+  RequestScanCancel(True);
+
+  repeat
+    HasRunningWorkers := False;
+    for I := 0 to High(Workers) do
+    begin
+      if Assigned(Workers[I]) and not Workers[I].Finished then
+      begin
+        HasRunningWorkers := True;
+        Break;
+      end;
+    end;
+
+    if HasRunningWorkers then
+      CheckSynchronize(50);
+  until not HasRunningWorkers;
+
+  CleanupFinishedWorkers(nil);
+  SetLength(Workers, 0);
+  ActiveWorkers := 0;
+  FIsScanning := False;
+end;
+
+procedure TForm1.CleanupFinishedWorkers(AExceptThread: TThread);
+var
+  I: Integer;
+begin
+  for I := 0 to High(Workers) do
+  begin
+    if Assigned(Workers[I]) and (Workers[I] <> AExceptThread) and
+      Workers[I].Finished then
+      FreeAndNil(Workers[I]);
+  end;
+end;
+
+procedure TForm1.SetScanControls(AScanning: Boolean; AStopping: Boolean);
+begin
+  EditIP.Enabled := not AScanning;
+  SpinStart.Enabled := not AScanning;
+  SpinEnd.Enabled := not AScanning;
+  BtnMyIP.Enabled := not AScanning;
+  BtnStart.Enabled := not AStopping;
+
+  if AScanning then
+    BtnStart.Caption := 'Stop'
+  else
+    BtnStart.Caption := 'Start';
+end;
+
+function TForm1.TryReadTarget(out AHost: u_long): Boolean;
+var
+  IPText: string;
+begin
+  IPText := Trim(EditIP.Text);
+  Result := TryParseIPv4Address(IPText, AHost);
+  if not Result then
+    ShowMessage('Enter a valid numeric IPv4 address.');
 end;
 
 procedure TForm1.BtnStartClick(Sender: TObject);
@@ -310,56 +528,53 @@ var
   Host: u_long;
   WorkerCount: Integer;
   I, Port: Integer;
+  IPText: string;
 begin
-  // === STOP ===
   if FIsScanning then
   begin
-    CancelScan := True;
-
-    QueueCS.Enter;
-    try
-      PortQueue.Clear;
-    finally
-      QueueCS.Leave;
-    end;
-
+    RequestScanCancel(True);
     UpdateStatusText('Stopping scan...');
-    BtnStart.Enabled := False;
+    SetScanControls(True, True);
     Exit;
   end;
 
-  // === START ===
-  ListBoxResults.Clear;
+  CleanupFinishedWorkers(nil);
+  SetLength(Workers, 0);
+
+  ListBoxResults.Items.BeginUpdate;
+  try
+    ListBoxResults.Clear;
+    ListBoxResults.Items.Add('ID  IP              PORT   STATE   RESPONSE');
+    ListBoxResults.Items.Add('--------------------------------------------');
+  finally
+    ListBoxResults.Items.EndUpdate;
+  end;
+
   ProgressBar.Position := 0;
   ScanResults.Clear;
   DonePorts := 0;
   OpenPorts := 0;
+  LabelOpen.Caption := 'Open Ports: 0';
 
   StartPort := SpinStart.Value;
   EndPort := SpinEnd.Value;
 
-  if (StartPort < 1) or (EndPort < 1) or (StartPort > 65535) or
-    (EndPort > 65535) or (StartPort > EndPort) then
+  if (StartPort < MIN_PORT_NUMBER) or (EndPort < MIN_PORT_NUMBER) or
+    (StartPort > MAX_PORT_NUMBER) or (EndPort > MAX_PORT_NUMBER) or
+    (StartPort > EndPort) then
   begin
-    ShowMessage('Invalid port range');
+    ShowMessage('Enter a valid port range from 1 to 65535.');
     Exit;
   end;
 
-  if Trim(EditIP.Text) = '' then
-  begin
-    ShowMessage('Enter IP address');
+  if not TryReadTarget(Host) then
     Exit;
-  end;
 
-  Host := inet_addr(PAnsiChar(AnsiString(Trim(EditIP.Text))));
-  if Host = u_long(INADDR_NONE) then
-  begin
-    ShowMessage('Invalid IP address');
-    Exit;
-  end;
+  IPText := Trim(EditIP.Text);
 
   QueueCS.Enter;
   try
+    CancelScan := False;
     PortQueue.Clear;
     for Port := StartPort to EndPort do
       PortQueue.Enqueue(Port);
@@ -369,25 +584,25 @@ begin
 
   TotalPorts := EndPort - StartPort + 1;
   FStartTime := Now;
-  CancelScan := False;
 
-  WorkerCount := TotalPorts;
-  if WorkerCount > MAX_WORKERS then
-    WorkerCount := MAX_WORKERS;
+  WorkerCount := Min(TotalPorts, MAX_WORKERS);
   if WorkerCount < 1 then
     WorkerCount := 1;
 
+  FActualWorkerCount := WorkerCount;
   ActiveWorkers := WorkerCount;
   SetLength(Workers, WorkerCount);
 
   for I := 0 to WorkerCount - 1 do
-    Workers[I] := TPortWorker.Create(Trim(EditIP.Text), Host);
+    Workers[I] := TPortWorker.Create(IPText, Host);
 
   FIsScanning := True;
-  BtnStart.Caption := 'Stop';
-
+  SetScanControls(True, False);
   UpdateStatusText(Format('Scanning %d ports with %d workers...',
     [TotalPorts, WorkerCount]));
+
+  for I := 0 to WorkerCount - 1 do
+    Workers[I].Start;
 end;
 
 procedure TForm1.BtnMyIPClick(Sender: TObject);
@@ -396,140 +611,154 @@ var
   hFile: HINTERNET;
   Buffer: array [0 .. 1023] of AnsiChar;
   BytesRead: DWORD;
+  Timeout: DWORD;
   Url: string;
   Content: AnsiString;
+  Chunk: AnsiString;
+  IPText: string;
+  Host: u_long;
 begin
   BtnMyIP.Enabled := False;
   try
+    Url := 'https://icanhazip.com/';
+    Timeout := EXTERNAL_IP_TIMEOUT_MS;
+    hInet := InternetOpen('PortScanner', INTERNET_OPEN_TYPE_PRECONFIG, nil,
+      nil, 0);
+    if hInet = nil then
+    begin
+      ShowMessage('Failed to initialize the internet connection.');
+      Exit;
+    end;
+
     try
-      Url := 'https://icanhazip.com/';
-      hInet := InternetOpen(PChar(Application.Title),
-        INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
-      if hInet = nil then
+      InternetSetOption(hInet, INTERNET_OPTION_CONNECT_TIMEOUT, @Timeout,
+        SizeOf(Timeout));
+      InternetSetOption(hInet, INTERNET_OPTION_RECEIVE_TIMEOUT, @Timeout,
+        SizeOf(Timeout));
+      InternetSetOption(hInet, INTERNET_OPTION_SEND_TIMEOUT, @Timeout,
+        SizeOf(Timeout));
+
+      hFile := InternetOpenUrl(hInet, PChar(Url), nil, 0,
+        INTERNET_FLAG_RELOAD or INTERNET_FLAG_NO_CACHE_WRITE, 0);
+      if hFile = nil then
       begin
-        ShowMessage('Failed to initialize internet connection');
+        ShowMessage('Failed to retrieve the external IP address.');
         Exit;
       end;
 
       try
-        hFile := InternetOpenUrl(hInet, PChar(Url), nil, 0,
-          INTERNET_FLAG_RELOAD or INTERNET_FLAG_NO_CACHE_WRITE, 0);
-        if hFile = nil then
+        Content := '';
+        repeat
+          BytesRead := 0;
+          if not InternetReadFile(hFile, @Buffer[0], SizeOf(Buffer),
+            BytesRead) then
+          begin
+            ShowMessage('Error reading the external IP response.');
+            Exit;
+          end;
+
+          if BytesRead > 0 then
+          begin
+            SetString(Chunk, PAnsiChar(@Buffer[0]), BytesRead);
+            Content := Content + Chunk;
+            if Length(Content) > MAX_EXTERNAL_IP_RESPONSE_BYTES then
+            begin
+              ShowMessage('External IP response is too large.');
+              Exit;
+            end;
+          end;
+        until BytesRead = 0;
+
+        IPText := Trim(string(Content));
+        if not TryParseIPv4Address(IPText, Host) then
         begin
-          ShowMessage
-            ('Failed to retrieve external IP. Check internet connection.');
+          ShowMessage('External service did not return a valid IPv4 address.');
           Exit;
         end;
 
-        try
-          Content := '';
-          repeat
-            if InternetReadFile(hFile, @Buffer[0], SizeOf(Buffer), BytesRead)
-            then
-            begin
-              if BytesRead > 0 then
-              begin
-                SetString(Content, PAnsiChar(@Buffer[0]), BytesRead);
-                EditIP.Text := Trim(string(Content));
-              end;
-            end
-            else
-            begin
-              ShowMessage('Error reading response from server');
-              Break;
-            end;
-          until BytesRead = 0;
-
-          if EditIP.Text <> '' then
-          else
-            ShowMessage('Could not determine external IP');
-
-        finally
-          InternetCloseHandle(hFile);
-        end;
+        EditIP.Text := IPText;
+        UpdateStatusText('External IPv4 address detected.');
       finally
-        InternetCloseHandle(hInet);
+        InternetCloseHandle(hFile);
       end;
-    except
-      on E: Exception do
-        ShowMessage('Error getting external IP: ' + E.Message);
+    finally
+      InternetCloseHandle(hInet);
     end;
   finally
-    BtnMyIP.Enabled := True;
+    BtnMyIP.Enabled := not FIsScanning;
   end;
 end;
 
 procedure TForm1.EditIPKeyPress(Sender: TObject; var Key: Char);
-const
-  AllowedChars: set of Char = ['0' .. '9', '.', #8];
 begin
-  if not CharInSet(Key, AllowedChars) then
+  if not (((Key >= '0') and (Key <= '9')) or (Key = '.') or (Key = #8)) then
     Key := #0;
 end;
 
 procedure TForm1.UpdateStatusText(const Text: string);
 begin
-  StatusBar.Panels[0].Text := Text;
+  if StatusBar.Panels.Count > 0 then
+    StatusBar.Panels[0].Text := Text;
 end;
 
-procedure TForm1.AddScanResult(const Result: TScanResult);
+function TForm1.FormatResultLine(AIndex: Integer; const AResult: TScanResult)
+  : string;
+begin
+  Result := Format('%-3d %-15s %-6d %-6s [%4d ms]',
+    [AIndex + 1, AResult.IP, AResult.Port, 'OPEN', AResult.ResponseTime]);
+end;
+
+procedure TForm1.AddOpenResultToView(const AResult: TScanResult);
+var
+  InsertIndex, I: Integer;
+begin
+  InsertIndex := 0;
+  while (InsertIndex < ScanResults.Count) and
+    (ScanResults[InsertIndex].Port < AResult.Port) do
+    Inc(InsertIndex);
+
+  ScanResults.Insert(InsertIndex, AResult);
+
+  ListBoxResults.Items.BeginUpdate;
+  try
+    ListBoxResults.Items.Insert(InsertIndex + RESULT_HEADER_LINES,
+      FormatResultLine(InsertIndex, AResult));
+
+    for I := InsertIndex + 1 to ScanResults.Count - 1 do
+      ListBoxResults.Items[I + RESULT_HEADER_LINES] :=
+        FormatResultLine(I, ScanResults[I]);
+  finally
+    ListBoxResults.Items.EndUpdate;
+  end;
+
+  if ListBoxResults.Items.Count > RESULT_HEADER_LINES then
+    ListBoxResults.ItemIndex := ListBoxResults.Items.Count - 1;
+end;
+
+procedure TForm1.AddScanProgress(ADoneCount: Integer;
+  const AResult: TScanResult; AHasOpenResult: Boolean);
 var
   Elapsed: Double;
   Pct: Integer;
-  InsertIndex, I: Integer;
-  R: TScanResult;
-  Line: string;
 begin
-  Inc(DonePorts);
+  if ADoneCount <= 0 then
+    Exit;
 
-  if Result.IsOpen then
+  Inc(DonePorts, ADoneCount);
+
+  if AHasOpenResult and AResult.IsOpen then
   begin
     Inc(OpenPorts);
-
-    InsertIndex := 0;
-    while (InsertIndex < ScanResults.Count) and
-      (ScanResults[InsertIndex].Port < Result.Port) do
-      Inc(InsertIndex);
-
-    ScanResults.Insert(InsertIndex, Result);
-    ListBoxResults.Items.BeginUpdate;
-    try
-      ListBoxResults.Clear;
-      ListBoxResults.Items.Add('ID  IP              PORT   STATE   RESPONSE');
-      ListBoxResults.Items.Add('--------------------------------------------');
-      for I := 0 to ScanResults.Count - 1 do
-      begin
-        R := ScanResults[I];
-
-        if R.ResponseTime >= 0 then
-          Line := Format('%-3d %-15s %-6d %-6s [%4d ms]',
-            [I + 1, R.IP, R.Port, 'OPEN', R.ResponseTime])
-        else
-          Line := Format('%d) %s:%d OPEN', [I + 1, R.IP, R.Port]);
-
-        ListBoxResults.Items.Add(Line);
-      end;
-
-    finally
-      ListBoxResults.Items.EndUpdate;
-    end;
-
-    if ListBoxResults.Items.Count > 0 then
-      ListBoxResults.ItemIndex := ListBoxResults.Items.Count - 1;
+    AddOpenResultToView(AResult);
   end;
 
   if TotalPorts > 0 then
   begin
     Pct := Trunc(DonePorts * 100.0 / TotalPorts);
-    if Pct < 0 then
-      Pct := 0;
-    if Pct > 100 then
-      Pct := 100;
-    ProgressBar.Position := Pct;
+    ProgressBar.Position := EnsureRange(Pct, 0, 100);
   end;
 
   Elapsed := (Now - FStartTime) * 86400;
-
   if Elapsed > 0 then
     UpdateStatusText(Format('Scanned %d/%d ports (%d open) [%.1f ports/sec]',
       [DonePorts, TotalPorts, OpenPorts, DonePorts / Elapsed]))
@@ -537,7 +766,7 @@ begin
     UpdateStatusText(Format('Scanned %d/%d ports (%d open)',
       [DonePorts, TotalPorts, OpenPorts]));
 
-  LabelOpen.Caption := 'Open Port: ' + IntToStr(OpenPorts);
+  LabelOpen.Caption := 'Open Ports: ' + IntToStr(OpenPorts);
 end;
 
 procedure TForm1.ScanStopped;
@@ -545,8 +774,7 @@ var
   TotalTime: Double;
 begin
   FIsScanning := False;
-  BtnStart.Enabled := True;
-  BtnStart.Caption := 'Start';
+  SetScanControls(False, False);
   TotalTime := (Now - FStartTime) * 86400;
   UpdateStatusText(Format('Scan stopped. %d open ports found. Time: %.2f sec',
     [OpenPorts, TotalTime]));
@@ -554,12 +782,14 @@ end;
 
 procedure TForm1.WorkerFinished(AThread: TObject);
 begin
+  CleanupFinishedWorkers(TThread(AThread));
+
   if ActiveWorkers > 0 then
     Dec(ActiveWorkers);
 
   if ActiveWorkers = 0 then
   begin
-    if CancelScan then
+    if IsScanCancelled then
       ScanStopped
     else
       ScanFinished;
@@ -571,8 +801,7 @@ var
   TotalTime: Double;
 begin
   FIsScanning := False;
-  BtnStart.Enabled := True;
-  BtnStart.Caption := 'Start';
+  SetScanControls(False, False);
   ProgressBar.Position := 100;
 
   TotalTime := (Now - FStartTime) * 86400;
@@ -581,6 +810,11 @@ begin
     [OpenPorts, TotalTime]));
 
   ExportAllReports;
+end;
+
+function TForm1.GetReportsDirectory: string;
+begin
+  Result := TPath.Combine(TPath.GetDocumentsPath, REPORT_FOLDER_NAME);
 end;
 
 procedure TForm1.ExportResultsToHTML(const FileName: string);
@@ -592,24 +826,26 @@ begin
   SL := TStringList.Create;
   try
     SL.Add('<!DOCTYPE html>');
-    SL.Add('<html><head>');
+    SL.Add('<html lang="en">');
+    SL.Add('<head>');
     SL.Add('<meta charset="utf-8">');
     SL.Add('<title>Port Scan Results</title>');
     SL.Add('<style>');
-    SL.Add('body { font-family: Arial; margin: 20px; }');
+    SL.Add('body { font-family: Arial, sans-serif; margin: 20px; }');
     SL.Add('table { border-collapse: collapse; width: 100%; }');
     SL.Add('th, td { border: 1px solid #ddd; padding: 8px; }');
     SL.Add('th { background-color: #f2f2f2; }');
     SL.Add('</style>');
-    SL.Add('</head><body>');
+    SL.Add('</head>');
+    SL.Add('<body>');
 
     SL.Add('<h1>Port Scan Results</h1>');
-    SL.Add('<p>Generated: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Now)
-      + '</p>');
+    SL.Add('<p>Generated: ' + HtmlEncode(FormatDateTime('yyyy-mm-dd hh:nn:ss',
+      Now)) + '</p>');
     SL.Add('<p>Target: ' + HtmlEncode(EditIP.Text) + '</p>');
     SL.Add('<p>Port range: ' + IntToStr(SpinStart.Value) + ' - ' +
       IntToStr(SpinEnd.Value) + '</p>');
-    SL.Add('<p>Workers: ' + IntToStr(MAX_WORKERS) + '</p>');
+    SL.Add('<p>Workers: ' + IntToStr(FActualWorkerCount) + '</p>');
 
     SL.Add('<table>');
     SL.Add('<tr><th>#</th><th>IP</th><th>Port</th><th>Response Time (ms)</th></tr>');
@@ -622,9 +858,9 @@ begin
     end;
 
     SL.Add('</table>');
-    SL.Add('</body></html>');
+    SL.Add('</body>');
+    SL.Add('</html>');
     SL.SaveToFile(FileName, TEncoding.UTF8);
-
   finally
     SL.Free;
   end;
@@ -643,7 +879,9 @@ begin
     for I := 0 to ScanResults.Count - 1 do
     begin
       R := ScanResults[I];
-      SL.Add(Format('%d,%s,%d,%d', [I + 1, R.IP, R.Port, R.ResponseTime]));
+      SL.Add(Format('%s,%s,%s,%s', [CsvEncode(IntToStr(I + 1)),
+        CsvEncode(R.IP), CsvEncode(IntToStr(R.Port)),
+        CsvEncode(IntToStr(R.ResponseTime))]));
     end;
 
     SL.SaveToFile(FileName, TEncoding.UTF8);
@@ -654,63 +892,63 @@ end;
 
 procedure TForm1.ExportResultsToJSON(const FileName: string);
 var
-  SL: TStringList;
+  Root: TJSONObject;
+  Info: TJSONObject;
+  Results: TJSONArray;
+  Item: TJSONObject;
   R: TScanResult;
   I: Integer;
-  Line: string;
 begin
-  SL := TStringList.Create;
+  Root := TJSONObject.Create;
   try
-    SL.Add('{');
-    SL.Add('  "scan_info": {');
-    SL.Add('    "date": "' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Now) + '",');
-    SL.Add('    "total_ports": ' + IntToStr(TotalPorts) + ',');
-    SL.Add('    "open_ports": ' + IntToStr(OpenPorts));
-    SL.Add('  },');
-    SL.Add('  "results": [');
+    Info := TJSONObject.Create;
+    Info.AddPair('date', FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
+    Info.AddPair('total_ports', TJSONNumber.Create(TotalPorts));
+    Info.AddPair('open_ports', TJSONNumber.Create(OpenPorts));
+    Info.AddPair('workers', TJSONNumber.Create(FActualWorkerCount));
+    Root.AddPair('scan_info', Info);
 
+    Results := TJSONArray.Create;
     for I := 0 to ScanResults.Count - 1 do
     begin
       R := ScanResults[I];
-      Line := Format
-        ('    {"index": %d, "ip": "%s", "port": %d, "response_time": %d}',
-        [I + 1, R.IP, R.Port, R.ResponseTime]);
-
-      if I < ScanResults.Count - 1 then
-        Line := Line + ',';
-
-      SL.Add(Line);
+      Item := TJSONObject.Create;
+      Item.AddPair('index', TJSONNumber.Create(I + 1));
+      Item.AddPair('ip', R.IP);
+      Item.AddPair('port', TJSONNumber.Create(R.Port));
+      Item.AddPair('response_time', TJSONNumber.Create(R.ResponseTime));
+      Results.AddElement(Item);
     end;
+    Root.AddPair('results', Results);
 
-    SL.Add('  ]');
-    SL.Add('}');
-    SL.SaveToFile(FileName, TEncoding.UTF8);
+    TFile.WriteAllText(FileName, Root.ToJSON, TEncoding.UTF8);
   finally
-    SL.Free;
+    Root.Free;
   end;
 end;
 
 procedure TForm1.ExportAllReports;
 var
   BaseName, HTMLName, CSVName, JSONName: string;
+  ReportsDir: string;
 begin
   try
+    ReportsDir := GetReportsDirectory;
+    TDirectory.CreateDirectory(ReportsDir);
+
     BaseName := Format('portscan_%s_%s',
       [FormatDateTime('yyyymmdd_hhnnss', Now), StringReplace(Trim(EditIP.Text),
       '.', '_', [rfReplaceAll])]);
 
-    HTMLName := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) +
-      BaseName + '.html';
-    CSVName := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) +
-      BaseName + '.csv';
-    JSONName := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) +
-      BaseName + '.json';
+    HTMLName := TPath.Combine(ReportsDir, BaseName + '.html');
+    CSVName := TPath.Combine(ReportsDir, BaseName + '.csv');
+    JSONName := TPath.Combine(ReportsDir, BaseName + '.json');
 
     ExportResultsToHTML(HTMLName);
     ExportResultsToCSV(CSVName);
     ExportResultsToJSON(JSONName);
 
-    UpdateStatusText(Format('Reports exported: %s.*', [BaseName]));
+    UpdateStatusText(Format('Reports exported to %s', [ReportsDir]));
   except
     on E: Exception do
       ShowMessage('Error exporting reports: ' + E.Message);

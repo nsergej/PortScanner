@@ -1,0 +1,68 @@
+name: Repository Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  repository-checks:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate repository structure and samples
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $required = @(
+            'README.md',
+            'BUILDING.md',
+            'CONTRIBUTING.md',
+            'SECURITY.md',
+            'CHANGELOG.md',
+            'src/PortScanner.dpr',
+            'src/PortScanner.rc',
+            'src/Unit1.pas',
+            'src/Unit1.dfm',
+            'docs/sample_report.csv',
+            'docs/sample_report.html',
+            'docs/sample_report.json'
+          )
+
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) {
+              throw "Missing required file: $path"
+            }
+          }
+
+          if (Test-Path 'docs/sample_repor.csv' -PathType Leaf) {
+            throw 'Old misspelled sample_repor.csv still exists.'
+          }
+
+          $csv = Import-Csv .\docs\sample_report.csv
+          $json = Get-Content -Raw .\docs\sample_report.json | ConvertFrom-Json
+          $html = Get-Content -Raw .\docs\sample_report.html
+          $readme = Get-Content -Raw .\README.md
+
+          foreach ($row in $csv) {
+            $jsonRow = $json.results | Where-Object { $_.index -eq [int]$row.Index }
+            if (-not $jsonRow) {
+              throw "JSON missing sample index $($row.Index)"
+            }
+            if ($jsonRow.ip -ne $row.IP -or $jsonRow.port -ne [int]$row.Port -or $jsonRow.response_time -ne [int]$row.ResponseTimeMs) {
+              throw "CSV/JSON mismatch at sample index $($row.Index)"
+            }
+            if ($html -notlike "*<td>$($row.Port)</td><td>$($row.ResponseTimeMs)</td>*") {
+              throw "HTML missing sample row for port $($row.Port)"
+            }
+          }
+
+          foreach ($path in @('docs/sample_report.csv', 'docs/sample_report.html', 'docs/sample_report.json', 'BUILDING.md', 'SECURITY.md')) {
+            if ($readme -notlike "*$path*") {
+              throw "README does not link $path"
+            }
+          }
